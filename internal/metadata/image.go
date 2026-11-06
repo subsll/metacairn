@@ -46,6 +46,34 @@ func applyImage(input, output string, f Fields) error {
 	if f.LensModel != "" {
 		m.SetLensModel(f.LensModel)
 	}
+	if f.ISO != "" {
+		v, err := parseISO(f.ISO)
+		if err != nil {
+			return err
+		}
+		m.SetISO(v)
+	}
+	if f.FNumber != "" {
+		v, err := parseAperture(f.FNumber)
+		if err != nil {
+			return err
+		}
+		m.SetFNumber(v)
+	}
+	if f.ExposureTime != "" {
+		num, den, err := parseExposure(f.ExposureTime)
+		if err != nil {
+			return err
+		}
+		m.SetExposureTime(num, den)
+	}
+	if f.FocalLength != "" {
+		v, err := parseFocalLength(f.FocalLength)
+		if err != nil {
+			return err
+		}
+		m.SetFocalLength(v)
+	}
 	if f.Date != "" {
 		t, err := parseTime(f.Date)
 		if err != nil {
@@ -117,6 +145,18 @@ func readImage(path string) (map[string]string, error) {
 	}
 	if v := m.LensModel(); v != "" {
 		out["lens"] = v
+	}
+	if v, ok := m.ISO(); ok {
+		out["iso"] = fmt.Sprintf("%d", v)
+	}
+	if v, ok := m.FNumber(); ok {
+		out["aperture"] = fmt.Sprintf("%.1f", v)
+	}
+	if num, den, ok := m.ExposureTime(); ok {
+		out["exposure"] = fmt.Sprintf("%d/%d", num, den)
+	}
+	if v, ok := m.FocalLength(); ok {
+		out["focal_length"] = fmt.Sprintf("%.0f", v)
 	}
 	if t, ok := m.DateTimeOriginal(); ok {
 		out["date"] = t.UTC().Format("2006-01-02T15:04:05Z")

@@ -1,0 +1,16 @@
+{
+  "name": "canon-eos-5d-mark-iv-demo",
+  "description": "SYNTHETIC DEMO PROFILE. Populates common camera fields for testing. It does not establish camera capture and does not remove XMP or C2PA provenance metadata.",
+  "fields": {
+    "make": "Canon",
+    "model": "Canon EOS 5D Mark IV",
+    "lens": "EF24-70mm f/2.8L II USM",
+    "iso": 100,
+    "aperture": 2.8,
+    "exposure": "1/250",
+    "focal_length": "50",
+    "date": "2024-06-15T14:32:00Z",
+    "gps": "52.3676,4.9041",
+    "orientation": 1
+  }
+}

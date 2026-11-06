@@ -70,6 +70,36 @@ func TestInPlaceBackup(t *testing.T) {
 	}
 }
 
+func TestSetWithProfile(t *testing.T) {
+	dir := t.TempDir()
+	in := filepath.Join(dir, "in.png")
+	out := filepath.Join(dir, "out.png")
+	makePNG(t, in)
+	var stdout, stderr bytes.Buffer
+	profilePath := "../../examples/profiles/canon-eos-5d-mark-iv.demo.json"
+	if code := Run([]string{"set", in, "--profile", profilePath, "--output", out, "--iso", "200"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("set code=%d stderr=%s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"get", out, "--json"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("get code=%d stderr=%s", code, stderr.String())
+	}
+	var report struct {
+		Metadata map[string]string `json:"metadata"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		t.Fatal(err)
+	}
+	m := report.Metadata
+	if m["make"] != "Canon" || m["model"] != "Canon EOS 5D Mark IV" || m["iso"] != "200" {
+		t.Fatalf("metadata = %+v", m)
+	}
+	if m["aperture"] != "2.8" || m["exposure"] != "1/250" || m["focal_length"] != "50" {
+		t.Fatalf("camera metadata = %+v", m)
+	}
+}
+
 func TestNoFields(t *testing.T) {
 	dir := t.TempDir()
 	in := filepath.Join(dir, "in.png")

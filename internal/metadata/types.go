@@ -3,6 +3,7 @@ package metadata
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,10 @@ type Fields struct {
 	Make           string
 	Model          string
 	LensModel      string
+	ISO            string
+	FNumber        string
+	ExposureTime   string
+	FocalLength    string
 	Date           string
 	GPS            string
 	Orientation    string
@@ -52,7 +57,8 @@ func (f Fields) Empty() bool {
 	return f.Title == "" && f.Author == "" && f.Subject == "" &&
 		f.Description == "" && len(f.Keywords) == 0 && f.Copyright == "" &&
 		f.Creator == "" && f.Producer == "" && f.Software == "" &&
-		f.Make == "" && f.Model == "" && f.LensModel == "" && f.Date == "" &&
+		f.Make == "" && f.Model == "" && f.LensModel == "" && f.ISO == "" &&
+		f.FNumber == "" && f.ExposureTime == "" && f.FocalLength == "" && f.Date == "" &&
 		f.GPS == "" && f.Orientation == "" && f.Category == "" &&
 		f.LastModifiedBy == "" && f.ContentStatus == "" && f.Created == "" &&
 		f.Modified == ""
@@ -91,6 +97,14 @@ func (f *Fields) Set(name, value string) error {
 		f.Model = value
 	case "lens", "lensmodel":
 		f.LensModel = value
+	case "iso", "isospeed":
+		f.ISO = value
+	case "fnumber", "aperture", "fstop":
+		f.FNumber = value
+	case "exposure", "exposuretime", "shutter", "shutterspeed":
+		f.ExposureTime = value
+	case "focal", "focallength":
+		f.FocalLength = value
 	case "date", "datetime", "datetimeoriginal", "capturetime":
 		f.Date = value
 	case "gps", "location", "coordinates":
@@ -156,6 +170,64 @@ func parseGPS(s string) (float64, float64, error) {
 	return lat, lon, nil
 }
 
+func parseISO(s string) (uint, error) {
+	n, err := strconv.ParseUint(strings.TrimSpace(s), 10, 32)
+	if err != nil || n == 0 {
+		return 0, fmt.Errorf("invalid ISO %q", s)
+	}
+	return uint(n), nil
+}
+
+func parseAperture(s string) (float64, error) {
+	v, err := strconv.ParseFloat(strings.TrimPrefix(strings.TrimSpace(s), "f/"), 64)
+	if err != nil || v <= 0 {
+		return 0, fmt.Errorf("invalid aperture %q (use e.g. 2.8)", s)
+	}
+	return v, nil
+}
+
+func parseFocalLength(s string) (float64, error) {
+	v, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(s), "mm"), 64)
+	if err != nil || v <= 0 {
+		return 0, fmt.Errorf("invalid focal length %q (use e.g. 50)", s)
+	}
+	return v, nil
+}
+
+func parseExposure(s string) (uint32, uint32, error) {
+	s = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(s), "s"))
+	if strings.Contains(s, "/") {
+		parts := strings.SplitN(s, "/", 2)
+		num, err1 := strconv.ParseUint(strings.TrimSpace(parts[0]), 10, 32)
+		den, err2 := strconv.ParseUint(strings.TrimSpace(parts[1]), 10, 32)
+		if err1 != nil || err2 != nil || num == 0 || den == 0 {
+			return 0, 0, fmt.Errorf("invalid exposure %q (use e.g. 1/250)", s)
+		}
+		return uint32(num), uint32(den), nil
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil || v <= 0 {
+		return 0, 0, fmt.Errorf("invalid exposure %q (use e.g. 1/250)", s)
+	}
+	const scale = 1000000
+	num := uint32(math.Round(v * scale))
+	if num == 0 {
+		num = 1
+	}
+	g := gcd(num, scale)
+	return num / g, scale / g, nil
+}
+
+func gcd(a, b uint32) uint32 {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	if a == 0 {
+		return 1
+	}
+	return a
+}
+
 func parseOrientation(s string) (uint16, error) {
 	n, err := strconv.Atoi(strings.TrimSpace(s))
 	if err != nil || n < 1 || n > 8 {
@@ -169,7 +241,7 @@ func joinKeywords(k []string) string { return strings.Join(k, ", ") }
 func imageFields(f Fields) error {
 	if f.Creator != "" || f.Producer != "" || f.Software != "" || f.Category != "" ||
 		f.LastModifiedBy != "" || f.ContentStatus != "" || f.Created != "" || f.Modified != "" {
-		return fmt.Errorf("field not supported for image formats (images support title, author, description, keywords, copyright, make, model, lens, date, gps and orientation)")
+		return fmt.Errorf("field not supported for image formats (images support title, author, description, keywords, copyright, make, model, lens, ISO, aperture, exposure, focal length, date, gps and orientation)")
 	}
 	return nil
 }
@@ -177,6 +249,7 @@ func imageFields(f Fields) error {
 func pdfFields(f Fields) error {
 	if f.Keywords != nil || f.Producer != "" || f.Date != "" || f.Created != "" ||
 		f.Modified != "" || f.Make != "" || f.Model != "" || f.LensModel != "" ||
+		f.ISO != "" || f.FNumber != "" || f.ExposureTime != "" || f.FocalLength != "" ||
 		f.GPS != "" || f.Orientation != "" || f.Category != "" ||
 		f.LastModifiedBy != "" || f.ContentStatus != "" {
 		return fmt.Errorf("field not supported for PDF (PDF supports title, author, subject, description, creator and software)")
@@ -185,7 +258,8 @@ func pdfFields(f Fields) error {
 }
 
 func ooxmlFields(f Fields) error {
-	if f.Make != "" || f.Model != "" || f.LensModel != "" || f.GPS != "" ||
+	if f.Make != "" || f.Model != "" || f.LensModel != "" || f.ISO != "" ||
+		f.FNumber != "" || f.ExposureTime != "" || f.FocalLength != "" || f.GPS != "" ||
 		f.Orientation != "" || f.Creator != "" || f.Producer != "" || f.Software != "" {
 		return fmt.Errorf("field not supported for OOXML documents")
 	}

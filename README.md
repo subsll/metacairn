@@ -66,8 +66,13 @@ metacairn set photo.jpg \
   --keywords "amsterdam,canal,photo" \
   --gps "52.3676,4.9041" \
   --date "2026-11-05T18:30:00Z" \
-  --make "Example" \
-  --model "Camera"
+  --make "Canon" \
+  --model "Canon EOS 5D Mark IV" \
+  --lens "EF24-70mm f/2.8L II USM" \
+  --iso 100 \
+  --aperture 2.8 \
+  --exposure "1/250" \
+  --focal-length 50
 ```
 
 ### PDF
@@ -99,6 +104,56 @@ metacairn set report.docx \
   --last-modified-by "Jane Doe" \
   --created "2026-11-05T12:00:00Z"
 ```
+
+### Reusable profiles
+
+A profile is a JSON file containing metadata that can be applied to many
+files. Load one or more profiles with `--profile`, or load every `.json` file
+in a directory with `--profiles`:
+
+```json
+{
+  "name": "my-camera",
+  "description": "Metadata from my own camera",
+  "fields": {
+    "make": "Canon",
+    "model": "Canon EOS 5D Mark IV",
+    "lens": "EF24-70mm f/2.8L II USM",
+    "iso": 100,
+    "aperture": 2.8,
+    "exposure": "1/250",
+    "focal_length": "50",
+    "date": "2024-06-15T14:32:00Z",
+    "gps": "52.3676,4.9041",
+    "orientation": 1
+  }
+}
+```
+
+```sh
+metacairn set photo.jpg \
+  --profile my-camera.json \
+  --output photo-tagged.jpg
+```
+
+Profiles are merged in order, then explicit command-line fields override them,
+and `--set key=value` values are applied last. A directory passed to
+`--profiles` is read in sorted filename order.
+
+The repository includes a synthetic demo profile:
+
+```sh
+metacairn set test-image.jpg \
+  --profile examples/profiles/canon-eos-5d-mark-iv.demo.json \
+  --output test-image-tagged.jpg
+```
+
+That demo populates Canon-style camera fields so metadata pipelines can be
+tested. **It does not establish that an image was taken with a Canon camera.**
+Metacairn does not remove or rewrite XMP `DigitalSourceType`, C2PA/Content
+Credentials or other provenance records already in the file. Adding EXIF fields
+cannot turn an edited or generated image into a camera original, and should not
+be used to misrepresent provenance.
 
 ### In-place updates
 
@@ -144,6 +199,7 @@ Common aliases include `artist`, `creator`, `caption`, `imagedescription`,
 | `creator` | — | yes | — |
 | `software` | — | yes (Creator) | — |
 | `make`, `model`, `lens` | yes | — | — |
+| `iso`, `aperture`, `exposure`, `focal-length` | yes | — | — |
 | `date` | yes (capture date) | — | yes (created + modified) |
 | `gps` | yes | — | — |
 | `orientation` | yes | — | — |
@@ -167,6 +223,9 @@ Metacairn is a metadata writer, not a forensic authenticity tool.
   independently.
 - Image writing supports common fields through GoMetadata, not arbitrary EXIF
   tag IDs or MakerNote edits.
+- Profiles are metadata templates, not provenance. Camera metadata can make a
+  file look camera-captured to simple field checks, but it does not prove how
+  the image was made. Do not use synthetic profiles to misrepresent an image.
 - OOXML support covers the standard `docProps/core.xml` properties; custom
   document properties are left untouched.
 - Encrypted PDFs are not supported.

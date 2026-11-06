@@ -14,10 +14,11 @@ import (
 	"strings"
 
 	"github.com/subsll/metacairn/internal/metadata"
+	"github.com/subsll/metacairn/internal/profile"
 )
 
 // Version is overridden at build time.
-var Version = "0.1.0"
+var Version = "0.2.0"
 
 // Run executes the CLI and returns an exit code.
 func Run(args []string, out, errOut io.Writer) int {
@@ -54,11 +55,13 @@ func runSet(args []string, out, errOut io.Writer) int {
 	var (
 		output, title, author, subject, description, keywords string
 		copyright, creator, software                          string
-		makeName, model, lens, date, gps, orientation         string
+		makeName, model, lens, iso, aperture                  string
+		exposure, focalLength, date, gps, orientation         string
 		category, lastModifiedBy, contentStatus               string
 		created, modified                                     string
 		inPlace, force                                        bool
 		sets                                                  kvList
+		profilePaths                                          fileList
 	)
 	fs.StringVar(&output, "o", "", "write to this file")
 	fs.StringVar(&output, "output", "", "write to this file")
@@ -75,6 +78,10 @@ func runSet(args []string, out, errOut io.Writer) int {
 	fs.StringVar(&makeName, "make", "", "camera make (images)")
 	fs.StringVar(&model, "model", "", "camera model (images)")
 	fs.StringVar(&lens, "lens", "", "lens model (images)")
+	fs.StringVar(&iso, "iso", "", "ISO speed (images)")
+	fs.StringVar(&aperture, "aperture", "", "aperture, e.g. 2.8 (images)")
+	fs.StringVar(&exposure, "exposure", "", "exposure, e.g. 1/250 (images)")
+	fs.StringVar(&focalLength, "focal-length", "", "focal length in mm (images)")
 	fs.StringVar(&date, "date", "", "capture/creation date")
 	fs.StringVar(&gps, "gps", "", "GPS as LAT,LON (images)")
 	fs.StringVar(&orientation, "orientation", "", "EXIF orientation 1-8 (images)")
@@ -85,6 +92,8 @@ func runSet(args []string, out, errOut io.Writer) int {
 	fs.StringVar(&modified, "modified", "", "modified date")
 	fs.Var(&sets, "set", "key=value metadata field (repeatable)")
 	fs.Var(&sets, "field", "alias for --set")
+	fs.Var(&profilePaths, "profile", "JSON metadata profile (repeatable)")
+	fs.Var(&profilePaths, "profiles", "JSON profile file or directory (repeatable)")
 	fs.Usage = func() {
 		fmt.Fprintln(errOut, "usage: metacairn set <file> (--output <file> | --in-place) [metadata flags]")
 		fs.PrintDefaults()
@@ -123,13 +132,38 @@ func runSet(args []string, out, errOut io.Writer) int {
 		return 2
 	}
 
-	fields := metadata.Fields{
-		Title: title, Author: author, Subject: subject, Description: description,
-		Copyright: copyright, Creator: creator, Software: software,
-		Make: makeName, Model: model, LensModel: lens, Date: date, GPS: gps,
-		Orientation: orientation, Category: category, LastModifiedBy: lastModifiedBy,
-		ContentStatus: contentStatus, Created: created, Modified: modified,
+	fields, profileNames, err := profile.Load(profilePaths)
+	if err != nil {
+		fmt.Fprintf(errOut, "metacairn: %v\n", err)
+		return 2
 	}
+	setIf := func(dst *string, value string) {
+		if value != "" {
+			*dst = value
+		}
+	}
+	setIf(&fields.Title, title)
+	setIf(&fields.Author, author)
+	setIf(&fields.Subject, subject)
+	setIf(&fields.Description, description)
+	setIf(&fields.Copyright, copyright)
+	setIf(&fields.Creator, creator)
+	setIf(&fields.Software, software)
+	setIf(&fields.Make, makeName)
+	setIf(&fields.Model, model)
+	setIf(&fields.LensModel, lens)
+	setIf(&fields.ISO, iso)
+	setIf(&fields.FNumber, aperture)
+	setIf(&fields.ExposureTime, exposure)
+	setIf(&fields.FocalLength, focalLength)
+	setIf(&fields.Date, date)
+	setIf(&fields.GPS, gps)
+	setIf(&fields.Orientation, orientation)
+	setIf(&fields.Category, category)
+	setIf(&fields.LastModifiedBy, lastModifiedBy)
+	setIf(&fields.ContentStatus, contentStatus)
+	setIf(&fields.Created, created)
+	setIf(&fields.Modified, modified)
 	if keywords != "" {
 		if err := fields.Set("keywords", keywords); err != nil {
 			fmt.Fprintf(errOut, "metacairn: %v\n", err)
@@ -203,7 +237,11 @@ func runSet(args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "metacairn: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(out, "wrote %s (%s)\n", target, format)
+	if len(profileNames) > 0 {
+		fmt.Fprintf(out, "wrote %s (%s; profiles: %s)\n", target, format, strings.Join(profileNames, ", "))
+	} else {
+		fmt.Fprintf(out, "wrote %s (%s)\n", target, format)
+	}
 	return 0
 }
 
@@ -312,6 +350,14 @@ type kvList []string
 func (k *kvList) String() string { return strings.Join(*k, ",") }
 func (k *kvList) Set(v string) error {
 	*k = append(*k, v)
+	return nil
+}
+
+type fileList []string
+
+func (f *fileList) String() string { return strings.Join(*f, ",") }
+func (f *fileList) Set(v string) error {
+	*f = append(*f, v)
 	return nil
 }
 
