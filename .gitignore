@@ -1,0 +1,10 @@
+/dist/
+/metacairn
+*.bak
+*.test
+coverage.out
+.DS_Store
+.env
+.env.*
+.gocache/
+.gomodcache/
